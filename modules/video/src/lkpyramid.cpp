@@ -654,6 +654,7 @@ void cv::detail::LKTrackerInvoker::operator()(const Range& range) const
             prevDelta = delta;
         }
 
+        CV_Assert(status != NULL);
         if( status[ptidx] && err && level == 0 && (flags & OPTFLOW_LK_GET_MIN_EIGENVALS) == 0 )
         {
             Point2f nextPoint = nextPts[ptidx] - halfWin;
@@ -849,7 +850,7 @@ namespace
                 return false;
             if (maxLevel < 0 || winSize.width <= 2 || winSize.height <= 2)
                 return false;
-            if (winSize.width < 16 || winSize.height < 16 ||
+            if (winSize.width < 8 || winSize.height < 8 ||
                 winSize.width > 24 || winSize.height > 24)
                 return false;
             calcPatchSize();
@@ -967,11 +968,17 @@ namespace
             size_t globalThreads[3] = { 8 * (size_t)ptcount, 8};
             char calcErr = (0 == level) ? 1 : 0;
 
+            int wsx = 1, wsy = 1;
+            if(winSize.width < 16)
+                wsx = 0;
+            if(winSize.height < 16)
+                wsy = 0;
             cv::String build_options;
             if (isDeviceCPU())
                 build_options = " -D CPU";
             else
-                build_options = cv::format("-D WAVE_SIZE=%d", waveSize);
+                build_options = cv::format("-D WAVE_SIZE=%d -D WSX=%d -D WSY=%d",
+                                           waveSize, wsx, wsy);
 
             ocl::Kernel kernel;
             if (!kernel.create("lkSparse", cv::ocl::video::pyrlk_oclsrc, build_options))
@@ -1445,7 +1452,7 @@ getRTMatrix( const Point2f* a, const Point2f* b,
     }
     else
     {
-        double sa[4][4]={{0.}}, sb[4]={0.}, m[4];
+        double sa[4][4]={{0.}}, sb[4]={0.}, m[4] = {0};
         Mat A( 4, 4, CV_64F, sa ), B( 4, 1, CV_64F, sb );
         Mat MM( 4, 1, CV_64F, m );
 

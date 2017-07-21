@@ -97,8 +97,8 @@ MACRO(_PCH_WRITE_PCHDEP_CXX _targetName _include_file _dephelp)
 
     set(${_dephelp} "${CMAKE_CURRENT_BINARY_DIR}/${_targetName}_pch_dephelp.cxx")
     set(_content "")
-    if(EXISTS "${_dephelp}")
-      file(READ "${_dephelp}" _content)
+    if(EXISTS "${${_dephelp}}")
+      file(READ "${${_dephelp}}" _content)
     endif()
     set(_dummy_str
 "#include \"${_include_file}\"
@@ -323,10 +323,7 @@ MACRO(ADD_NATIVE_PRECOMPILED_HEADER _targetName _input)
 
         get_target_property(_sources ${_targetName} SOURCES)
         foreach(src ${_sources})
-          if(NOT "${src}" MATCHES "\\.mm$"
-               AND NOT "${src}" MATCHES "\\.h$" AND NOT "${src}" MATCHES "\\.hpp$" # header files
-               AND NOT "${src}" MATCHES "^\$" # CMake generator expressions
-          )
+          if("${src}" MATCHES "\\.c(pp|xx)?$")
             get_source_file_property(oldProps "${src}" COMPILE_FLAGS)
             get_source_file_property(oldProps2 "${src}" COMPILE_DEFINITIONS)
             if(NOT oldProps AND NOT oldProps2)
