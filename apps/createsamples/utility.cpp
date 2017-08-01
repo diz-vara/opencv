@@ -1681,3 +1681,225 @@ void cvShowVecSamples( const char* filename, int winwidth, int winheight,
         fclose( file.input );
     }
 }
+
+
+int cvCreateTrainingSamplesFromInfoWithDistortion(const char* infoname, const char* vecfilename,
+    int num,
+    int maxintensitydev, int bgcolor, int bgthreshold,
+    double maxxangle, double maxyangle, double maxzangle,
+    int showsamples,
+    int winwidth, int winheight)
+{
+    char fullname[PATH_MAX];
+    char tmpname[PATH_MAX];
+    char* filename;
+
+    FILE* info;
+    FILE* vec;
+    IplImage* src = 0;
+    IplImage* sample;
+    int line(0);
+    int error;
+    int i;
+    int x, y, width, height;
+    int total;
+
+    assert(infoname != NULL);
+    assert(vecfilename != NULL);
+
+    total = 0;
+    if (!icvMkDir(vecfilename))
+    {
+
+#if CV_VERBOSE
+        fprintf(stderr, "Unable to create directory hierarchy: %s\n", vecfilename);
+#endif /* CV_VERBOSE */
+
+        return total;
+    }
+
+    info = fopen(infoname, "r");
+    if (info == NULL)
+    {
+
+#if CV_VERBOSE
+        fprintf(stderr, "Unable to open file: %s\n", infoname);
+#endif /* CV_VERBOSE */
+
+        return total;
+    }
+
+    int count;
+    int srcImagesNumber(0);
+    int srcImagesCounter(0);
+    //count number of lines in the file
+    while (fgets(fullname, PATH_MAX - 1, info) != 0)
+    {
+        if (strlen(fullname) > 5)
+            error = (sscanf(fullname, "%s %d", tmpname, &count) != 2);
+        if (!error)
+        {
+            srcImagesNumber += count;
+        }
+    }
+
+    fseek(info, 0, SEEK_SET);
+
+    int replicationCount(0);
+    fprintf(stdout, " %d samples in the input files\n", srcImagesNumber);
+
+
+
+
+    vec = fopen(vecfilename, "wb");
+    if (vec == NULL)
+    {
+
+#if CV_VERBOSE
+        fprintf(stderr, "Unable to open file: %s\n", vecfilename);
+#endif /* CV_VERBOSE */
+
+        fclose(info);
+
+        return total;
+    }
+
+    sample = cvCreateImage(cvSize(winwidth, winheight), IPL_DEPTH_8U, 1);
+
+    icvWriteVecHeader(vec, num, sample->width, sample->height);
+
+    if (showsamples)
+    {
+        cvNamedWindow("Sample", CV_WINDOW_AUTOSIZE);
+    }
+
+    strcpy(fullname, infoname);
+    filename = strrchr(fullname, '\\');
+    if (filename == NULL)
+    {
+        filename = strrchr(fullname, '/');
+    }
+    if (filename == NULL)
+    {
+        filename = fullname;
+    }
+    else
+    {
+        filename++;
+    }
+
+    for (line = 1, error = 0, total = 0; total < num; line++)
+    {
+
+        error = (fscanf(info, "%s %d", filename, &count) != 2);
+        if (!error)
+        {
+            src = cvLoadImage(fullname, 0);
+            error = (src == NULL);
+            if (error)
+            {
+
+#if CV_VERBOSE
+                fprintf(stderr, "Unable to open image: %s\n", fullname);
+#endif /* CV_VERBOSE */
+
+            }
+        }
+        for (i = 0; (i < count) && (total < num); i++)
+        {
+            error = (fscanf(info, "%d %d %d %d", &x, &y, &width, &height) != 4);
+            if (error) break;
+            cvSetImageROI(src, cvRect(x, y, width, height));
+            cvResize(src, sample, width >= sample->width &&
+                height >= sample->height ? CV_INTER_AREA : CV_INTER_LINEAR);
+
+            CvSampleDistortionData data;
+
+            srcImagesCounter++;
+
+            bool hasbg(0);
+            replicationCount = (num - total) / (srcImagesNumber - srcImagesCounter);
+            if (replicationCount > 1 && icvStartSampleDistortion(fullname, bgcolor, bgthreshold, &data))
+            {
+                CvMat matSample = cvMat(winheight, winwidth, CV_8UC1, cvAlloc(sizeof(uchar) *
+                    winheight * winwidth));
+                for (int distcnt = 0; distcnt < replicationCount; distcnt++)
+                {
+                    cvSet(&matSample, cvScalar(bgcolor));
+
+                    try {
+                        icvPlaceDistortedSample(&matSample, 0, maxintensitydev,
+                            maxxangle, maxyangle, maxzangle,
+                            0   /* nonzero means placing image without cut offs */,
+                            0.0 /* nozero adds random shifting                  */,
+                            0.0 /* nozero adds random scaling                   */,
+                            &data);
+
+                        if (showsamples)
+                        {
+                            cvShowImage("Sample", &matSample);
+                            if (cvWaitKey(0) == 27)
+                            {
+                                showsamples = 0;
+                            }
+                        }
+
+                        icvWriteVecSample(vec, &matSample);
+                        total++;
+                    }
+                    catch (...) {
+                        printf("some error in %d (file %d = %s)\n", total, srcImagesCounter, filename);
+                    }
+
+                }
+
+            }
+            else
+            {
+                if (showsamples)
+                {
+                    cvShowImage("Sample", sample);
+                    if (cvWaitKey(0) == 27)
+                    {
+                        showsamples = 0;
+                    }
+                }
+
+                icvWriteVecSample(vec, sample);
+                total++;
+            }
+#ifdef CV_VERBOSE
+            if (total % 10 == 0)
+            {
+                printf("\r%4d of %4d | %d of %d ( x %d)", total, num, srcImagesCounter, srcImagesNumber, replicationCount);
+            }
+#endif /* CV_VERBOSE */
+        }
+
+        if (src)
+        {
+            cvReleaseImage(&src);
+        }
+
+        if (error)
+        {
+
+#if CV_VERBOSE
+            fprintf(stderr, "\n%s(%d) : parse error", infoname, line);
+#endif /* CV_VERBOSE */
+
+            break;
+        }
+    }
+
+    if (sample)
+    {
+        cvReleaseImage(&sample);
+    }
+
+    fclose(vec);
+    fclose(info);
+
+    return total;
+}
+

@@ -105,6 +105,15 @@ int cvCreateTrainingSamplesFromInfo( const char* infoname, const char* vecfilena
                                      int showsamples,
                                      int winwidth, int winheight );
 
+
+
+int cvCreateTrainingSamplesFromInfoWithDistortion(const char* infoname, const char* vecfilename,
+    int num,
+    int maxintensitydev, int bgcolor, int bgthreshold,
+    double maxxangle, double maxyangle, double maxzangle,
+    int showsamples,
+    int winwidth, int winheight);
+
 /*
  * cvShowVecSamples
  *

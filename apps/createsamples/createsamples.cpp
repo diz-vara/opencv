@@ -228,12 +228,22 @@ int main( int argc, char* argv[] )
     {
         int total;
 
+        /*
         printf( "Create training samples from images collection...\n" );
 
         total = cvCreateTrainingSamplesFromInfo( infoname, vecname, num, showsamples,
                                                  width, height );
 
         printf( "Done. Created %d samples\n", total );
+        */
+        total = cvCreateTrainingSamplesFromInfoWithDistortion(infoname, vecname,
+            num,
+            maxintensitydev, bgcolor, bgthreshold,
+            maxxangle, maxyangle, maxzangle,
+            showsamples,
+            width, height);
+
+        printf("\nDone. Created %d samples (requested %d)\n", total, num);
     }
     else if( vecname )
     {
