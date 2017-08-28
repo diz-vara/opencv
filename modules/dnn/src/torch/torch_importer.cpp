@@ -623,7 +623,7 @@ struct TorchImporter : public ::cv::dnn::Importer
 
                 curModule->modules.push_back(newModule);
             }
-            else if (nnName == "SpatialDropout")
+            else if (nnName == "SpatialDropout" || nnName == "Dropout")
             {
                 readTorchTable(scalarParams, tensorParams);
                 CV_Assert(scalarParams.has("p"));
@@ -818,8 +818,10 @@ struct TorchImporter : public ::cv::dnn::Importer
         {
             if (module->thName == "Sequential")
             {
+                std::cout << "SEQUENTIAL: " << std::endl;
                 for (size_t i = 0; i < module->modules.size(); i++)
                 {
+                    std::cout << "\t" << module->modules[i]->thName << " : " << prevLayerId << std::endl;
                     prevLayerId = fill(module->modules[i], addedModules, prevLayerId, prevOutNum);
                     prevOutNum = 0;
                 }
@@ -891,12 +893,15 @@ struct TorchImporter : public ::cv::dnn::Importer
                 net.connect(prevLayerId, prevOutNum, splitId, 0);
 
                 addedModules.push_back(std::make_pair(splitId, module));
+                std::cout << "ConcatTable: splitId =" << splitId << ", " << prevLayerId << ", " << prevOutNum << ": ";
 
                 for (int i = 0; i < (int)module->modules.size(); i++)
                 {
                     newId = fill(module->modules[i], addedModules, splitId, i);
+                    std::cout << "[ " << newId << ": " << module->modules[i]->thName << "], ";
                 }
 
+                std::cout << std::endl;
                 return newId;
             }
             else if (module->thName == "JoinTable") {
@@ -909,10 +914,15 @@ struct TorchImporter : public ::cv::dnn::Importer
                 mergeId = net.addLayer(generateLayerName("torchMerge"), "Concat", mergeParams);
                 addedModules.push_back(std::make_pair(mergeId, module));
 
+                std::cout << "JoinTable: mergeId =" << mergeId << ", dimension=" << module->params.get<int>("dimension") <<  ": ";
+
+
                 for (int i = 0; i < ids.size(); i++)
                 {
                     net.connect(ids[i], 0, mergeId, i);
+                    std::cout << "[ " << ids[i] <<  " : "  << "], ";
                 }
+                std::cout << std::endl;
 
                 return mergeId;
             }
